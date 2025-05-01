@@ -577,6 +577,7 @@ CUSTOM_CVAR(Int, dmflags3, 0, CVAR_SERVERINFO | CVAR_NOINITCALL)
 }
 
 CVAR(Flag, sv_noplayerclip, dmflags3, DF3_NO_PLAYER_CLIP);
+CVAR(Flag, sv_coopsharekeys, dmflags3, DF3_COOP_SHARE_KEYS);
 
 //==========================================================================
 //
@@ -3643,8 +3644,9 @@ static int D_DoomMain_Internal (void)
 		OnMenuOpen,
 		System_LanguageChanged,
 		OkForLocalization,
-		[]() ->FConfigFile* { return GameConfig; }
-
+		[]() ->FConfigFile* { return GameConfig; },
+		nullptr, 
+		RemapUserTranslation
 	};
 
 	

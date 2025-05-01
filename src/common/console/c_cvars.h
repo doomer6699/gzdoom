@@ -219,6 +219,9 @@ public:
 
 	void* GetExtraDataPointer();
 
+	int pnum = -1;
+	FName userinfoName;
+
 protected:
 	virtual void DoSet (UCVarValue value, ECVarType type) = 0;
 	virtual void InstantiateZSCVar()
