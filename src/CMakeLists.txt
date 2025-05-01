@@ -632,6 +632,7 @@ file( GLOB HEADER_FILES
 	common/thirdparty/rapidjson/*.h
 	common/thirdparty/math/*h
 	common/thirdparty/libsmackerdec/include/*.h
+	common/thirdparty/utf8proc/*.h
 	common/rendering/*.h
 	common/rendering/gl_load/*.h
 	common/rendering/gles/*.h
@@ -1053,6 +1054,7 @@ set (PCH_SOURCES
 	common/2d/v_drawtext.cpp
 	common/2d/v_draw.cpp
 	common/2d/wipe.cpp
+	common/thirdparty/animlib.cpp
 	common/thirdparty/gain_analysis.cpp
 	common/thirdparty/sfmt/SFMT.cpp
 	common/startscreen/startscreen.cpp
@@ -1081,7 +1083,6 @@ set (PCH_SOURCES
 	common/textures/skyboxtexture.cpp
 	common/textures/animtexture.cpp
 	common/textures/v_collection.cpp
-	common/textures/animlib.cpp
 	common/textures/formats/automaptexture.cpp
 	common/textures/formats/brightmaptexture.cpp
 	common/textures/formats/buildtexture.cpp
@@ -1142,6 +1143,7 @@ set (PCH_SOURCES
 	common/utility/s_playlist.cpp
 	common/utility/name.cpp
 	common/utility/r_memory.cpp
+	common/utility/writezip.cpp
 	common/thirdparty/base64.cpp
 	common/thirdparty/md5.cpp
  	common/thirdparty/superfasthash.cpp
@@ -1252,6 +1254,7 @@ set( GAME_SOURCES
 	${PCH_SOURCES}
 	common/utility/x86.cpp
 	common/thirdparty/strnatcmp.c
+	common/thirdparty/utf8proc/utf8proc.c
 	common/thirdparty/stb/stb_sprintf.c
 	common/utility/zstring.cpp
 	common/utility/findfile.cpp
@@ -1285,12 +1288,16 @@ set( GAME_SOURCES
 	common/filesystem/source/file_pak.cpp
 	common/filesystem/source/file_whres.cpp
 	common/filesystem/source/file_ssi.cpp
+	common/filesystem/source/file_hog.cpp
+	common/filesystem/source/file_mvl.cpp
 	common/filesystem/source/file_directory.cpp
 	common/filesystem/source/resourcefile.cpp
 	common/filesystem/source/files.cpp
 	common/filesystem/source/files_decompress.cpp
 	common/filesystem/source/fs_findfile.cpp
 	common/filesystem/source/fs_stringpool.cpp
+	common/filesystem/source/unicode.cpp
+	common/filesystem/source/critsec.cpp
 
 )
 
@@ -1332,6 +1339,7 @@ include_directories(
 	common/thirdparty/libsmackerdec/include
 	common/thirdparty
 	common/thirdparty/stb
+	common/thirdparty/utf8proc
 	common/textures
 	common/textures/formats
 	common/textures/hires
@@ -1584,6 +1592,7 @@ source_group("Common\\Third Party\\Math" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SO
 source_group("Common\\Third Party\\RapidJSON" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/thirdparty/rapidjson/.+")
 source_group("Common\\Third Party\\SFMT" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/thirdparty/sfmt/.+")
 source_group("Common\\Third Party\\stb" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/thirdparty/stb/.+")
+source_group("Common\\Third Party\\utf8proc" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/thirdparty/utf8proc/.+")
 source_group("Utility" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/utility/.+")
 source_group("Utility\\Node Builder" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/utility/nodebuilder/.+")
 source_group("Utility\\Smackerdec" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/smackerdec/.+")
