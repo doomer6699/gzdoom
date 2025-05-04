@@ -1322,7 +1322,7 @@ IMPLEMENT_CLASS(DAutosaver, false, false)
 
 void DAutosaver::Tick ()
 {
-	Net_WriteByte (DEM_CHECKAUTOSAVE);
+	Net_WriteInt8 (DEM_CHECKAUTOSAVE);
 	Destroy ();
 }
 
