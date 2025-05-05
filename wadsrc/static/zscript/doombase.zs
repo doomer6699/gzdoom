@@ -137,6 +137,9 @@ extend class Object
 	native static void MarkSound(Sound snd);
 	native static uint BAM(double angle);
 	native static void SetMusicVolume(float vol);
+	native clearscope static Object GetNetworkEntity(uint id);
+	native play void EnableNetworking(bool enable);
+	native clearscope uint GetNetworkID() const;
 }
 
 class Thinker : Object native play
@@ -411,7 +414,7 @@ struct LevelLocals native
 	native Array<@Side> Sides;
 	native readonly Array<@Vertex> Vertexes;
 	native readonly Array<@LinePortal> LinePortals;
-	native internal Array<@SectorPortal> SectorPortals;
+	native internal readonly Array<@SectorPortal> SectorPortals;
 	
 	native readonly int time;
 	native readonly int maptime;
@@ -583,10 +586,10 @@ struct State native
 	native readonly bool bCanRaise;
 	native readonly bool bDehacked;
 	
-	native int DistanceTo(state other);
-	native bool ValidateSpriteFrame();
-	native TextureID, bool, Vector2 GetSpriteTexture(int rotation, int skin = 0, Vector2 scale = (0,0), int spritenum = -1, int framenum = -1);
-	native bool InStateSequence(State base);
+	native int DistanceTo(state other) const;
+	native bool ValidateSpriteFrame() const;
+	native TextureID, bool, Vector2 GetSpriteTexture(int rotation, int skin = 0, Vector2 scale = (0,0), int spritenum = -1, int framenum = -1) const;
+	native bool InStateSequence(State base) const;
 }
 
 struct TerrainDef native
