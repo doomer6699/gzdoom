@@ -1243,6 +1243,7 @@ OptionMenu "MiscOptions" protected
 	Option "$MISCMNU_NOCHEATS",					"nocheats", "OnOff"
 	Option "$MISCMNU_ALLCHEATS",				"allcheats", "OnOff"
 	Option "$MISCMNU_ENABLEAUTOSAVES",			"disableautosave", "Autosave"
+	Option "$MISCMNU_RESTARTONDEATH",			"cl_restartondeath", "OnOff"
 	Option "$MISCMNU_SAVELOADCONFIRMATION",		"saveloadconfirmation", "OnOff"
 	Slider "$MISCMNU_AUTOSAVECOUNT",			"autosavecount", 1, 20, 1, 0
 	Option "$MISCMNU_QUICKSAVEROTATION",		"quicksaverotation", "OnOff"
@@ -1730,6 +1731,7 @@ OptionMenu CoopOptions protected
 	Option "$GMPLYMNU_SHAREKEYS",				"sv_coopsharekeys", "YesNo"
 	Option "$GMPLYMNU_LOCALITEMS",				"sv_localitems", "YesNo"
 	Option "$GMPLYMNU_NOLOCALDROP",				"sv_nolocaldrops", "YesNo"
+	Option "$GMPLYMNU_REMEMBERWEAP",			"sv_rememberlastweapon", "YesNo"
 	Class "GameplayMenu"
 }
 
