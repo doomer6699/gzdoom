@@ -1750,7 +1750,6 @@ void FLevelLocals::QueueBody (AActor *body)
 //
 // G_DoReborn
 //
-CVAR (Bool, pistolstart, false, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 EXTERN_CVAR(Bool, sv_singleplayerrespawn)
 void FLevelLocals::DoReborn (int playernum, bool freshbot)
 {
@@ -1760,8 +1759,8 @@ void FLevelLocals::DoReborn (int playernum, bool freshbot)
 	if (!multiplayer && !(flags2 & LEVEL2_ALLOWRESPAWN) && !sv_singleplayerrespawn &&
 		!G_SkillProperty(SKILLP_PlayerRespawn))
 	{
-		if (!(cl_restartondeath) && (BackupSaveName.Len() > 0 && FileExists (BackupSaveName))
-			&& (ishub || !pistolstart || !gameinfo.gametype == GAME_Doom))
+		if (BackupSaveName.Len() > 0 && FileExists (BackupSaveName)
+			&& (ishub || !cl_restartondeath || !gameinfo.gametype == GAME_Doom))
 		{ // Load game from the last point it was saved
 			savename = BackupSaveName;
 			gameaction = ga_autoloadgame;
