@@ -221,8 +221,10 @@ void HWSprite::DrawSprite(HWDrawInfo *di, FRenderState &state, bool translucent)
 		state.SetFog(0, 0);
 	}
 
+	int clampmode = nomipmap ? CLAMP_XY_NOMIP : CLAMP_XY;
+
 	uint32_t spritetype = actor? uint32_t(actor->renderflags & RF_SPRITETYPEMASK) : 0;
-	if (texture) state.SetMaterial(texture, UF_Sprite, (spritetype == RF_FACESPRITE) ? CTF_Expand : 0, CLAMP_XY, translation, OverrideShader);
+	if (texture) state.SetMaterial(texture, UF_Sprite, (spritetype == RF_FACESPRITE) ? CTF_Expand : 0, clampmode, translation, OverrideShader);
 	else if (!modelframe) state.EnableTexture(false);
 
 	//SetColor(lightlevel, rel, Colormap, trans);
@@ -400,8 +402,9 @@ bool HWSprite::CalculateVertices(HWDrawInfo* di, FVector3* v, DVector3* vp)
 		&& (gl_billboard_mode == 1 || (actor && actor->renderflags & RF_FORCEXYBILLBOARD))));
 
 	const bool drawBillboardFacingCamera = hw_force_cambbpref ? gl_billboard_faces_camera :
-		(gl_billboard_faces_camera && (actor && !(actor->renderflags2 & RF2_BILLBOARDNOFACECAMERA)))
-		|| !!(actor && actor->renderflags2 & RF2_BILLBOARDFACECAMERA);
+		gl_billboard_faces_camera
+		&& ((actor && (!(actor->renderflags2 & RF2_BILLBOARDNOFACECAMERA) || (actor->renderflags2 & RF2_BILLBOARDFACECAMERA)))
+		|| (particle && particle->texture.isValid() && (!(particle->flags & SPF_NOFACECAMERA) || (particle->flags & SPF_FACECAMERA))));
 
 	// [Nash] has +ROLLSPRITE
 	const bool drawRollSpriteActor = (actor != nullptr && actor->renderflags & RF_ROLLSPRITE);
@@ -414,7 +417,7 @@ bool HWSprite::CalculateVertices(HWDrawInfo* di, FVector3* v, DVector3* vp)
 
 	// [Nash] is a flat sprite
 	const bool isWallSprite = (actor != nullptr) && (spritetype == RF_WALLSPRITE);
-	const bool useOffsets = (actor != nullptr) && !(actor->renderflags & RF_ROLLCENTER);
+	const bool useOffsets = ((actor != nullptr) && !(actor->renderflags & RF_ROLLCENTER)) || (particle && !(particle->flags & SPF_ROLLCENTER));
 
 	FVector2 offset = FVector2( offx, offy );
 	float xx = -center.X + x;
@@ -788,6 +791,8 @@ void HWSprite::Process(HWDrawInfo *di, AActor* thing, sector_t * sector, area_t 
 			return;
 	}
 
+	nomipmap = (thing->renderflags2 & RF2_NOMIPMAP);
+
 	// check renderrequired vs ~r_rendercaps, if anything matches we don't support that feature,
 	// check renderhidden vs r_rendercaps, if anything matches we do support that feature and should hide it.
 	if ((!r_debug_disable_vis_filter && !!(thing->RenderRequired & ~r_renderercaps)) ||
@@ -1022,7 +1027,7 @@ void HWSprite::Process(HWDrawInfo *di, AActor* thing, sector_t * sector, area_t 
 		if (thing->renderflags & (RF_ROLLSPRITE|RF_FLATSPRITE))
 		{
 			double ps = di->Level->pixelstretch;
-			double mult = 2 * ps / (ps * ps + 1); // shrink slightly
+			double mult = 1.0 / sqrt(ps); // shrink slightly
 			r.Scale(mult * ps, mult);
 		}
 
@@ -1342,6 +1347,7 @@ void HWSprite::ProcessParticle(HWDrawInfo *di, particle_t *particle, sector_t *s
 	actor = nullptr;
 	this->particle = particle;
 	fullbright = particle->flags & SPF_FULLBRIGHT;
+	nomipmap = particle->flags & SPF_NOMIPMAP;
 
 	if (di->isFullbrightScene()) 
 	{
@@ -1470,7 +1476,7 @@ void HWSprite::ProcessParticle(HWDrawInfo *di, particle_t *particle, sector_t *s
 
 		float ps = di->Level->pixelstretch;
 
-		scalefac *= 2 * ps / (ps * ps + 1); // shrink it slightly to account for the stretch
+		scalefac /= sqrt(ps); // shrink it slightly to account for the stretch
 
 		float viewvecX = vp.ViewVector.X * scalefac * ps;
 		float viewvecY = vp.ViewVector.Y * scalefac;
@@ -1545,7 +1551,7 @@ void HWSprite::AdjustVisualThinker(HWDrawInfo* di, DVisualThinker* spr, sector_t
 	if (spr->PT.flags & SPF_ROLL)
 	{
 		double ps = di->Level->pixelstretch;
-		double mult = 2 * ps / (ps * ps + 1); // shrink slightly
+		double mult = 1.0 / sqrt(ps); // shrink slightly
 		r.Scale(mult * ps, mult);
 	}
 
