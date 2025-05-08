@@ -1906,8 +1906,8 @@ class PlayerPawn : Actor
 		// it provides player class based protection that should not affect
 		// any other protection item.
 		let myclass = GetClass();
-		GiveInventoryType('HexenArmor');
-		let harmor = HexenArmor(FindInventory('HexenArmor'));
+		GiveInventoryType(GetHexenArmorClass());
+		let harmor = HexenArmor(FindInventory('HexenArmor', true));
 
 		harmor.Slots[4] = self.HexenArmor[0];
 		for (int i = 0; i < 4; ++i)
@@ -1918,7 +1918,7 @@ class PlayerPawn : Actor
 		// BasicArmor must come right after that. It should not affect any
 		// other protection item as well but needs to process the damage
 		// before the HexenArmor does.
-		GiveInventoryType('BasicArmor');
+		GiveInventoryType(GetBasicArmorClass());
 
 		// Now add the items from the DECORATE definition
 		let di = GetDropItems();
@@ -2867,6 +2867,7 @@ struct PlayerInfo native play	// self is what internally is known as player_t
 	native clearscope int GetColorSet() const;
 	native clearscope int GetPlayerClassNum() const;
 	native clearscope int GetSkin() const;
+	native clearscope int GetSkinCount() const;
 	native clearscope bool GetNeverSwitch() const;
 	native clearscope int GetGender() const;
 	native clearscope int GetTeam() const;
@@ -2878,6 +2879,7 @@ struct PlayerInfo native play	// self is what internally is known as player_t
 	native bool GetFViewBob() const;
 	native double GetStillBob() const;
 	native void SetFOV(float fov);
+	native int SetSkin(int skinIndex);
 	native clearscope bool GetClassicFlight() const;
 	native void SendPitchLimits();
 	native clearscope bool HasWeaponsInSlot(int slot) const;

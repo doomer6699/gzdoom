@@ -81,6 +81,8 @@ EXTERN_CVAR(Float, r_actorspriteshadowfadeheight)
 CVAR(Bool, gl_usecolorblending, true, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 CVAR(Bool, gl_sprite_blend, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG);
 CVAR(Int, gl_spriteclip, 1, CVAR_ARCHIVE)
+CVAR(Bool, r_debug_nolimitanamorphoses, false, 0)
+CVAR(Float, r_spriteclipanamorphicminbias, 0.6, CVAR_ARCHIVE)
 CVAR(Float, gl_sclipthreshold, 10.0, CVAR_ARCHIVE)
 CVAR(Float, gl_sclipfactor, 1.8f, CVAR_ARCHIVE)
 CVAR(Int, gl_particles_style, 2, CVAR_ARCHIVE | CVAR_GLOBALCONFIG) // 0 = square, 1 = round, 2 = smooth
@@ -404,8 +406,8 @@ bool HWSprite::CalculateVertices(HWDrawInfo* di, FVector3* v, DVector3* vp)
 
 	const bool drawBillboardFacingCamera = hw_force_cambbpref ? gl_billboard_faces_camera :
 		gl_billboard_faces_camera
-		&& ((actor && (!(actor->renderflags2 & RF2_BILLBOARDNOFACECAMERA) || (actor->renderflags2 & RF2_BILLBOARDFACECAMERA)))
-		|| (particle && particle->texture.isValid() && (!(particle->flags & SPF_NOFACECAMERA) || (particle->flags & SPF_FACECAMERA))));
+		|| ((actor && (!(actor->renderflags2 & RF2_BILLBOARDNOFACECAMERA) && (actor->renderflags2 & RF2_BILLBOARDFACECAMERA)))
+		|| (particle && particle->texture.isValid() && (!(particle->flags & SPF_NOFACECAMERA) && (particle->flags & SPF_FACECAMERA))));
 
 	// [Nash] has +ROLLSPRITE
 	const bool drawRollSpriteActor = (actor != nullptr && actor->renderflags & RF_ROLLSPRITE);
@@ -425,7 +427,7 @@ bool HWSprite::CalculateVertices(HWDrawInfo* di, FVector3* v, DVector3* vp)
 	float yy = -center.Y + y;
 	float zz = -center.Z + z;
 	// [Nash] check for special sprite drawing modes
-	if (drawWithXYBillboard || isWallSprite)
+	if (drawWithXYBillboard || drawBillboardFacingCamera || isWallSprite)
 	{
 		mat.MakeIdentity();
 		mat.Translate(center.X, center.Z, center.Y); // move to sprite center
@@ -1054,7 +1056,7 @@ void HWSprite::Process(HWDrawInfo *di, AActor* thing, sector_t * sector, area_t 
 
 		r.Scale(sprscale.X, isSpriteShadow ? sprscale.Y * 0.15 * thing->isoscaleY : sprscale.Y * thing->isoscaleY);
 
-		if (thing->renderflags & (RF_ROLLSPRITE|RF_FLATSPRITE))
+		if ((thing->renderflags & RF_ROLLSPRITE) || (thing->renderflags2 & RF2_SQUAREPIXELS))
 		{
 			double ps = di->Level->pixelstretch;
 			double mult = 1.0 / sqrt(ps); // shrink slightly
@@ -1134,6 +1136,56 @@ void HWSprite::Process(HWDrawInfo *di, AActor* thing, sector_t * sector, area_t 
 	depth = (float)((x - vp.Pos.X) * vp.TanCos + (y - vp.Pos.Y) * vp.TanSin);
 	if(thing->renderflags2 & RF2_ISOMETRICSPRITES) depth = depth * vp.PitchCos - vp.PitchSin * z2; // Helps with stacking actors with small xy offsets
 	if (isSpriteShadow) depth += 1.f/65536.f; // always sort shadows behind the sprite.
+
+	if (gl_spriteclip == -1 && (thing->renderflags & RF_SPRITETYPEMASK) == RF_FACESPRITE) // perform anamorphosis
+	{
+		float minbias = r_spriteclipanamorphicminbias;
+		minbias = clamp(minbias, 0.3f, 1.0f);
+
+		float btm = thing->Sector->floorplane.ZatPoint(thing) - thing->Floorclip;
+		float top = thing->Sector->ceilingplane.ZatPoint(thingpos);
+
+		float vbtm = thing->Sector->floorplane.ZatPoint(vp.Pos);
+		float vtop = thing->Sector->ceilingplane.ZatPoint(vp.Pos);
+
+		float vpx = vp.Pos.X;
+		float vpy = vp.Pos.Y;
+		float vpz = vp.Pos.Z;
+
+		float tpx = thingpos.X;
+		float tpy = thingpos.Y;
+		float tpz = thingpos.Z;
+
+		if (!(r_debug_nolimitanamorphoses))
+		{
+			// this should help prevent clipping through walls ...
+			float objradiusbias = 1.f - thing->radius / sqrt((vpx - tpx) * (vpx - tpx) + (vpy - tpy) * (vpy - tpy));
+			minbias = max(minbias, objradiusbias);
+		}
+
+		float bintersect, tintersect;
+		if (z2 < vpz && vbtm < vpz)
+			bintersect = min((btm - vpz) / (z2 - vpz), (vbtm - vpz) / (z2 - vpz));
+		else
+			bintersect = 1.0;
+
+		if (z1 > vpz && vtop > vpz)
+			tintersect = min((top - vpz) / (z1 - vpz), (vtop - vpz) / (z1 - vpz));
+		else
+			tintersect = 1.0;
+
+		if (thing->waterlevel >= 1 && thing->waterlevel <= 2)
+			bintersect = tintersect = 1.0f;
+
+		float spbias = clamp(min(bintersect, tintersect), minbias, 1.0f);
+		float vpbias = 1.0 - spbias;
+		x1 = x1 * spbias + vpx * vpbias;
+		y1 = y1 * spbias + vpy * vpbias;
+		z1 = z1 * spbias + vpz * vpbias;
+		x2 = x2 * spbias + vpx * vpbias;
+		y2 = y2 * spbias + vpy * vpbias;
+		z2 = z2 * spbias + vpz * vpbias;		
+	}
 
 	// light calculation
 
@@ -1353,6 +1405,7 @@ void HWSprite::Process(HWDrawInfo *di, AActor* thing, sector_t * sector, area_t 
 	{
 		lightlist = nullptr;
 	}
+
 	PutSprite(di, hw_styleflags != STYLEHW_Solid);
 	rendered_sprites++;
 }

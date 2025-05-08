@@ -148,7 +148,7 @@ class DoomStatusBar : BaseStatusBar
 		DrawTexture(GetMugShot(5), (3, -34), DI_ITEM_OFFSETS);
 		DrawString(mHUDFont, FormatNumber(CPlayer.health, 3), (44, -25));
 
-		let armor = CPlayer.mo.FindInventory("BasicArmor");
+		let armor = CPlayer.mo.FindInventory("BasicArmor", true);
 		if (armor != null && armor.Amount > 0)
 		{
 			//DrawInventoryIcon(armor, (20, -22));
