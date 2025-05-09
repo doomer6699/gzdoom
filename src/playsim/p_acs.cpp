@@ -4809,6 +4809,8 @@ enum EACSFunctions
 	ACSF_GetSectorHealth,
 	ACSF_GetLineHealth,
 	ACSF_SetSubtitleNumber,
+	ACSF_GetNetID,
+	ACSF_SetActivatorByNetID,
 
 		// Eternity's
 	ACSF_GetLineX = 300,
@@ -5383,6 +5385,13 @@ int DLevelScript::CallFunction(int argCount, int funcIndex, int32_t *args, int &
 			actor = Level->SingleActorFromTID(args[0], activator);
 			return actor != NULL? DoubleToACS(actor->Vel.Z) : 0;
 
+		case ACSF_GetNetID:
+			MIN_ARG_COUNT(2);
+			actor = Level->SelectActorFromTID(args[0], args[1], activator);
+			if (argCount > 2)
+				actor = COPY_AAPTREX(Level, actor, args[2]);
+			return actor != nullptr ? actor->GetNetworkID() : NetworkEntityManager::WorldNetID;
+
 		case ACSF_SetPointer:
 			MIN_ARG_COUNT(2);
 			if (activator)
@@ -5431,6 +5440,18 @@ int DLevelScript::CallFunction(int argCount, int funcIndex, int32_t *args, int &
 					activator = actor;
 					return 1;
 				}
+			}
+			return 0;
+
+		case ACSF_SetActivatorByNetID:
+			MIN_ARG_COUNT(1);
+			actor = dyn_cast<AActor>(NetworkEntityManager::GetNetworkEntity(args[0]));
+			if (argCount > 1)
+				actor = COPY_AAPTREX(Level, actor, args[1]);
+			if (actor != nullptr)
+			{
+				activator = actor;
+				return 1;
 			}
 			return 0;
 

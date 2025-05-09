@@ -112,6 +112,8 @@ EXTERN_CVAR (String, playerclass)
 EXTERN_CVAR (Bool, ui_classic)
 
 extern uint8_t globalfreeze, globalchangefreeze;
+int startpos = 0; // [RH] Support for multiple starts per level
+int laststartpos = 0;
 
 #define SNAP_ID			MAKE_ID('s','n','A','p')
 #define DSNP_ID			MAKE_ID('d','s','N','p')
@@ -654,7 +656,9 @@ void G_InitNew (const char *mapname, bool bTitleLevel)
 		gamestate = GS_LEVEL;
 	}
 	
-	G_DoLoadLevel (mapname, 0, false, !savegamerestore);
+	if (!savegamerestore)
+		startpos = laststartpos = 0;
+	G_DoLoadLevel (mapname, startpos, false, !savegamerestore);
 
 	if (!savegamerestore && (gameinfo.gametype == GAME_Strife || (SBarInfoScript[SCRIPT_CUSTOM] != nullptr && SBarInfoScript[SCRIPT_CUSTOM]->GetGameType() == GAME_Strife)))
 	{
@@ -671,7 +675,6 @@ void G_InitNew (const char *mapname, bool bTitleLevel)
 // G_DoCompleted
 //
 static FString	nextlevel;
-static int		startpos;	// [RH] Support for multiple starts per level
 extern int		NoWipe;		// [RH] Don't wipe when travelling in hubs
 static int		changeflags;
 static bool		unloading;
@@ -1102,7 +1105,6 @@ void G_DoCompleted (void)
 	if (gamestate == GS_TITLELEVEL)
 	{
 		G_DoLoadLevel (nextlevel, startpos, false, false);
-		startpos = 0;
 		viewactive = true;
 		return;
 	}
@@ -1375,7 +1377,6 @@ void G_DoLoadLevel(const FString &nextmapname, int position, bool autosave, bool
 void FLevelLocals::DoLoadLevel(const FString &nextmapname, int position, bool autosave, bool newGame)
 {
 	MapName = nextmapname;
-	static int lastposition = 0;
 	int i;
 
 	if (NextSkill >= 0)
@@ -1387,9 +1388,9 @@ void FLevelLocals::DoLoadLevel(const FString &nextmapname, int position, bool au
 	}
 
 	if (position == -1)
-		position = lastposition;
+		position = laststartpos;
 	else
-		lastposition = position;
+		laststartpos = position;
 
 	Init();
 	StatusBar->DetachAllMessages ();
@@ -1589,7 +1590,6 @@ void G_DoWorldDone (void)
 	}
 	primaryLevel->StartTravel ();
 	G_DoLoadLevel (nextlevel, startpos, true, false);
-	startpos = 0;
 	gameaction = ga_nothing;
 	viewactive = true; 
 }
@@ -2412,6 +2412,24 @@ void FLevelLocals::ApplyCompatibility()
 void FLevelLocals::ApplyCompatibility2()
 {
 	i_compatflags2 = GetCompatibility2(compatflags2) | ii_compatflags2;
+}
+
+AActor* FLevelLocals::SelectActorFromTID(int tid, size_t index, AActor* defactor)
+{
+	if (tid == 0)
+		return defactor;
+
+	AActor* actor = nullptr;
+	size_t cur = 0u;
+	auto it = GetActorIterator(tid);
+	while ((actor = it.Next()) != nullptr)
+	{
+		if (cur == index)
+			return actor;
+		++cur;
+	}
+
+	return nullptr;
 }
 
 //==========================================================================

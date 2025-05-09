@@ -722,7 +722,7 @@ enum EParticleFlags
 	SPF_FACECAMERA				= 1 << 11,
 	SPF_NOFACECAMERA			= 1 << 12,
 	SPF_ROLLCENTER				= 1 << 13,
-	SPF_NOMIPMAP				= 1 << 14,
+	SPF_STRETCHPIXELS			= 1 << 14,
 
 	SPF_RELATIVE				= SPF_RELPOS|SPF_RELVEL|SPF_RELACCEL|SPF_RELANG
 };
@@ -1410,6 +1410,8 @@ enum ELevelFlags
 	LEVEL3_AVOIDMELEE			= 0x00020000,	// global flag needed for proper MBF support.
 	LEVEL3_NOJUMPDOWN			= 0x00040000,	// only for MBF21. Inverse of MBF's dog_jumping flag.
 	LEVEL3_LIGHTCREATED			= 0x00080000,	// a light had been created in the last frame
+	LEVEL3_NOFOGOFWAR			= 0x00100000,	// disables effect of r_radarclipper CVAR on this map
+	LEVEL3_SECRET				= 0x00200000,	// level is a secret level
 };
 
 // [RH] Compatibility flags.
@@ -1465,6 +1467,12 @@ enum ECompatFlags
 	COMPATF2_STAYONLIFT		= 1 << 13,	// yet another MBF thing.
 	COMPATF2_NOMBF21		= 1 << 14,	// disable MBF21 features that may clash with certain maps
 	COMPATF2_VOODOO_ZOMBIES = 1 << 15,  // allow playerinfo, playerpawn, and voodoo health to all be different, and allow monster targetting of 'dead' players that have positive health
+};
+
+enum HitWaterFlags
+{
+	THW_SMALL	= 1 << 0,
+	THW_NOVEL	= 1 << 1,
 };
 
 const M_E        = 2.7182818284590452354;  // e
