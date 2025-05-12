@@ -167,10 +167,6 @@ public:
 		Enabled = enabled;
 	}
 
-	bool AllowsEnabledInBackground() { return false; }
-	bool GetEnabledInBackground() { return false; }
-	void SetEnabledInBackground(bool enabled) {}
-
 	FString GetIdentifier()
 	{
 		char id[16];
