@@ -187,7 +187,7 @@ static FString LookupMusic(const char* musicname, int& order)
 static int FindMusic(const char* musicname)
 {
 	int lumpnum = fileSystem.CheckNumForFullName(musicname);
-	if (lumpnum == -1) lumpnum = fileSystem.CheckNumForName(musicname, FileSys::ns_music);
+	if (lumpnum == -1) lumpnum = fileSystem.CheckNumForName(musicname, ns_music);
 	return lumpnum;
 }
 
@@ -296,7 +296,7 @@ void S_Start()
 			if (LocalSndInfo.IsNotEmpty())
 			{
 				// Now parse the local SNDINFO
-				int j = fileSystem.CheckNumForFullName(LocalSndInfo.GetChars(), true);
+				int j = fileSystem.CheckNumForAnyName(LocalSndInfo.GetChars());
 				if (j >= 0) S_AddLocalSndInfo(j);
 			}
 
@@ -310,7 +310,7 @@ void S_Start()
 
 		if (parse_ss)
 		{
-			S_ParseSndSeq(LocalSndSeq.IsNotEmpty() ? fileSystem.CheckNumForFullName(LocalSndSeq.GetChars(), true) : -1);
+			S_ParseSndSeq(LocalSndSeq.IsNotEmpty() ? fileSystem.CheckNumForAnyName(LocalSndSeq.GetChars()) : -1);
 		}
 
 		LastLocalSndInfo = LocalSndInfo;

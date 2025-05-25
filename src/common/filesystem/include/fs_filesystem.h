@@ -42,8 +42,8 @@ public:
 	void SetMaxIwadNum(int x) { MaxIwadIndex = x; }
 
 	bool InitSingleFile(const char *filename, FileSystemMessageFunc Printf = nullptr);
-	bool InitMultipleFiles (std::vector<std::string>& filenames, LumpFilterInfo* filter = nullptr, FileSystemMessageFunc Printf = nullptr, bool allowduplicates = false, FILE* hashfile = nullptr);
-	void AddFile (const char *filename, FileReader *wadinfo, LumpFilterInfo* filter, FileSystemMessageFunc Printf, FILE* hashfile);
+	bool InitMultipleFiles (std::vector<std::string>& filenames, LumpFilterInfo* filter = nullptr, FileSystemMessageFunc Printf = nullptr, bool allowduplicates = false);
+	void AddFile (const char *filename, FileReader *wadinfo, LumpFilterInfo* filter, FileSystemMessageFunc Printf);
 	int CheckIfResourceFileLoaded (const char *name) noexcept;
 	void AddAdditionalFile(const char* filename, FileReader* wadinfo = NULL) {}
 
@@ -66,8 +66,13 @@ public:
 	inline int GetNumForName (const uint8_t *name, int ns) const { return GetNumForName ((const char *)name, ns); }
 
 	int CheckNumForFullName (const char *cname, bool trynormal = false, int namespc = ns_global, bool ignoreext = false) const;
-	int CheckNumForFullName (const char *name, int wadfile) const;
+	int CheckNumForFullNameInFile (const char *name, int wadfile) const;
 	int GetNumForFullName (const char *name) const;
+	int CheckNumForAnyName(const char* cname, namespace_t namespc = ns_global) const
+	{
+		return CheckNumForFullName(cname, true, namespc);
+	}
+
 	int FindFile(const char* name) const
 	{
 		return CheckNumForFullName(name);
@@ -122,7 +127,7 @@ public:
 	ptrdiff_t FileLength (int lump) const;
 	int GetFileFlags (int lump);					// Return the flags for this lump
 	const char* GetFileShortName(int lump) const;
-	const char *GetFileFullName (int lump, bool returnshort = true) const;	// [RH] Returns the lump's full name
+	const char *GetFileName (int lump, bool returnshort = true) const;	// [RH] Returns the lump's full name
 	std::string GetFileFullPath (int lump) const;		// [RH] Returns wad's name + lump's full name
 	int GetFileContainer (int lump) const;				// [RH] Returns wadnum for a specified lump
 	int GetFileNamespace (int lump) const;			// [RH] Returns the namespace a lump belongs to

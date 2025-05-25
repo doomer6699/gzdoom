@@ -168,7 +168,7 @@ static void ReplaceSoundName(int index, const char* newname)
 	if (snd == NO_SOUND) return;
 	auto sfx = soundEngine->GetWritableSfx(snd);
 	FStringf dsname("ds%s", newname);
-	sfx->lumpnum = fileSystem.CheckNumForName(dsname.GetChars(), FileSys::ns_sounds);
+	sfx->lumpnum = fileSystem.CheckNumForName(dsname.GetChars(), ns_sounds);
 	sfx->bTentative = false;
 	sfx->bRandomHeader = false;
 	sfx->bLoadRAW = false;
@@ -3098,7 +3098,7 @@ CVAR(Int, dehload, 0, CVAR_ARCHIVE)	// Autoloading of .DEH lumps is disabled by 
 // checks if lump is a .deh or .bex file. Only lumps in the root directory are considered valid.
 static bool isDehFile(int lumpnum)
 {
-	const char* const fullName  = fileSystem.GetFileFullName(lumpnum);
+	const char* const fullName  = fileSystem.GetFileName(lumpnum);
 	const char* const extension = strrchr(fullName, '.');
 
 	return NULL != extension && strchr(fullName, '/') == NULL
@@ -3205,7 +3205,7 @@ bool D_LoadDehFile(const char *patchfile, int flags)
 	else
 	{
 		// Couldn't find it in the filesystem; try from a lump instead.
-		int lumpnum = fileSystem.CheckNumForFullName(patchfile, true);
+		int lumpnum = fileSystem.CheckNumForFullName(patchfile);
 		if (lumpnum < 0)
 		{
 			// Compatibility fallback. It's just here because

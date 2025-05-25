@@ -41,7 +41,6 @@
 #include "c_cvars.h"
 #include "c_bind.h"
 #include "c_dispatch.h"
-#include "m_misc.h"
 
 #include "menu.h"
 #include "vm.h"
@@ -427,7 +426,7 @@ DEFINE_ACTION_FUNCTION(_TexMan, GetName)
 			// Textures for full path names do not have their own name, they merely link to the source lump.
 			auto lump = tex->GetSourceLump();
 			if (TexMan.GetLinkedTexture(lump) == tex)
-				retval = fileSystem.GetFileFullName(lump);
+				retval = fileSystem.GetFileName(lump);
 		}
 	}
 	ACTION_RETURN_STRING(retval);
@@ -851,7 +850,7 @@ DEFINE_ACTION_FUNCTION(_Wads, GetLumpFullName)
 {
 	PARAM_PROLOGUE;
 	PARAM_INT(lump);
-	ACTION_RETURN_STRING(fileSystem.GetFileFullName(lump));
+	ACTION_RETURN_STRING(fileSystem.GetFileName(lump));
 }
 
 DEFINE_ACTION_FUNCTION(_Wads, GetLumpNamespace)
@@ -1031,17 +1030,6 @@ DEFINE_ACTION_FUNCTION(_CVar, FindCVar)
 	PARAM_PROLOGUE;
 	PARAM_NAME(name);
 	ACTION_RETURN_POINTER(FindCVar(name.GetChars(), nullptr));
-}
-
-static int SaveConfig()
-{
-	return M_SaveDefaults(nullptr);
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(_CVar, SaveConfig, SaveConfig)
-{
-	PARAM_PROLOGUE;
-	ACTION_RETURN_INT(M_SaveDefaults(nullptr));
 }
 
 //=============================================================================

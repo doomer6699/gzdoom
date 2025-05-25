@@ -258,7 +258,7 @@ void InitBuildTiles()
 	int numlumps = fileSystem.GetNumEntries();
 	for (int i = 0; i < numlumps; i++)
 	{
-		const char* name = fileSystem.GetFileFullName(i);
+		const char* name = fileSystem.GetFileName(i);
 		if (fileSystem.CheckNumForFullName(name) != i) continue;	// This palette is hidden by a later one. Do not process
 		FString base = ExtractFileBase(name, true);
 		base.ToLower();
@@ -276,7 +276,7 @@ void InitBuildTiles()
 				// only read from the same source as the palette.
 				// The entire format here is just too volatile to allow liberal mixing.
 				// An .ART set must be treated as one unit.
-				lumpnum = fileSystem.CheckNumForFullName(artpath.GetChars(), fileSystem.GetFileContainer(i));
+				lumpnum = fileSystem.CheckNumForFullNameInFile(artpath.GetChars(), fileSystem.GetFileContainer(i));
 				if (lumpnum < 0)
 				{
 					break;

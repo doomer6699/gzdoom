@@ -1441,6 +1441,7 @@ void FLevelLocals::PlayerReborn (int player)
 	p->cheats |= chasecam;
 	p->Bot = Bot;			//Added by MC:
 	p->settings_controller = settings_controller;
+	p->LastSafePos = p->mo->Pos();
 
 	p->oldbuttons = ~0, p->attackdown = true; p->usedown = true;	// don't do anything immediately
 	p->original_oldbuttons = ~0;
@@ -2919,7 +2920,7 @@ void G_DoPlayDemo (void)
 	gameaction = ga_nothing;
 
 	// [RH] Allow for demos not loaded as lumps
-	demolump = fileSystem.CheckNumForFullName (defdemoname.GetChars(), true);
+	demolump = fileSystem.CheckNumForAnyName (defdemoname.GetChars());
 	if (demolump >= 0)
 	{
 		int demolen = fileSystem.FileLength (demolump);

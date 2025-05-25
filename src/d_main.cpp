@@ -1988,8 +1988,8 @@ static FString CheckGameInfo(std::vector<std::string> & pwads)
 static void SetMapxxFlag()
 {
 	int lump_name = fileSystem.CheckNumForName("MAP01", ns_global, fileSystem.GetIwadNum());
-	int lump_wad = fileSystem.CheckNumForFullName("maps/map01.wad", fileSystem.GetIwadNum());
-	int lump_map = fileSystem.CheckNumForFullName("maps/map01.map", fileSystem.GetIwadNum());
+	int lump_wad = fileSystem.CheckNumForFullNameInFile("maps/map01.wad", fileSystem.GetIwadNum());
+	int lump_map = fileSystem.CheckNumForFullNameInFile("maps/map01.map", fileSystem.GetIwadNum());
 
 	if (lump_name >= 0 || lump_wad >= 0 || lump_map >= 0) gameinfo.flags |= GI_MAPxx;
 }
@@ -3023,39 +3023,6 @@ static void System_HudScaleChanged()
 
 bool  CheckSkipGameOptionBlock(const char* str);
 
-//==========================================================================
-//
-//
-//
-//==========================================================================
-
-static FILE* D_GetHashFile()
-{
-	FILE *hashfile = nullptr;
-
-	if (Args->CheckParm("-hashfiles"))
-	{
-		const char *filename = "fileinfo.txt";
-		Printf("Hashing loaded content to: %s\n", filename);
-		hashfile = fopen(filename, "w");
-		if (hashfile)
-		{
-			Printf("Notice: File hashing is incredibly verbose. Expect loading files to take much longer than usual.\n");
-			fprintf(hashfile, "%s version %s (%s)\n", GAMENAME, GetVersionString(), GetGitHash());
-#ifdef __VERSION__
-			fprintf(hashfile, "Compiler version: %s\n", __VERSION__);
-#endif
-			fprintf(hashfile, "Command line:");
-			for (int i = 0; i < Args->NumArgs(); ++i)
-			{
-				fprintf(hashfile, " %s", Args->GetArg(i));
-			}
-			fprintf(hashfile, "\n");
-		}
-	}
-	return hashfile;
-}
-
 // checks if a file within a directory is allowed to be added to the file system.
 static bool FileNameCheck(const char* base, const char* path)
 {
@@ -3207,8 +3174,7 @@ static int D_InitGame(const FIWADInfo* iwad_info, std::vector<std::string>& allw
 	);
 
 	bool allowduplicates = Args->CheckParm("-allowduplicates");
-	auto hashfile = D_GetHashFile();
-	if (!fileSystem.InitMultipleFiles(allwads, &lfi, FileSystemPrintf, allowduplicates, hashfile))
+	if (!fileSystem.InitMultipleFiles(allwads, &lfi, FileSystemPrintf, allowduplicates))
 	{
 		I_FatalError("FileSystem: no files found");
 	}
@@ -4023,7 +3989,7 @@ CCMD(fs_dir)
 	for (int i = 0; i < numfiles; i++)
 	{
 		auto container = fileSystem.GetResourceFileFullName(fileSystem.GetFileContainer(i));
-		auto fn1 = fileSystem.GetFileFullName(i);
+		auto fn1 = fileSystem.GetFileName(i);
 		auto fns = fileSystem.GetFileShortName(i);
 		auto fnid = fileSystem.GetResourceId(i);
 		auto length = fileSystem.FileLength(i);
