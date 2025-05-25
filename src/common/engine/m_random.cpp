@@ -111,11 +111,11 @@ int 	prndindex = 0;
 
 // EXTERNAL DATA DECLARATIONS ----------------------------------------------
 
-FRandom pr_exrandom("EX_Random", false);
+FRandom pr_exrandom("EX_Random", false, false);
 
 // PUBLIC DATA DEFINITIONS -------------------------------------------------
 
-FRandom M_Random;
+FCRandom M_Random;
 
 // Global seed. This is modified predictably to initialize every RNG.
 uint32_t rngseed;
@@ -158,8 +158,8 @@ CCMD(rngseed)
 
 // PRIVATE DATA DEFINITIONS ------------------------------------------------
 
-FRandom *FRandom::RNGList;
-static TDeletingArray<FRandom *> NewRNGs;
+FRandom *FRandom::RNGList, *FRandom::CRNGList;
+static TDeletingArray<FRandom *> NewRNGs, NewCRNGs;
 
 // CODE --------------------------------------------------------------------
 
@@ -182,14 +182,22 @@ void M_ClearRandom (void)
 //
 //==========================================================================
 
-FRandom::FRandom ()
-: NameCRC (0), useOldRNG (false)
+FRandom::FRandom (bool client)
+: NameCRC (0), bClient(client), useOldRNG (false)
 {
 #ifndef NDEBUG
 	Name = NULL;
 #endif
-	Next = RNGList;
-	RNGList = this;
+	if (bClient)
+	{
+		Next = CRNGList;
+		CRNGList = this;
+	}
+	else
+	{
+		Next = RNGList;
+		RNGList = this;
+	}
 	Init(0);
 }
 
@@ -201,10 +209,9 @@ FRandom::FRandom ()
 //
 //==========================================================================
 
-FRandom::FRandom (const char *name, bool useold)
+FRandom::FRandom (const char *name, bool client, bool useold) : bClient(client), useOldRNG(useold)
 {
 	NameCRC = CalcCRC32 ((const uint8_t *)name, (unsigned int)strlen (name));
-	useOldRNG = useold;
 #ifndef NDEBUG
 	Name = name;
 	// A CRC of 0 is reserved for nameless RNGs that don't get stored
@@ -214,7 +221,7 @@ FRandom::FRandom (const char *name, bool useold)
 #endif
 
 	// Insert the RNG in the list, sorted by CRC
-	FRandom **prev = &RNGList, *probe = RNGList;
+	FRandom **prev = (bClient ? &CRNGList : &RNGList), * probe = (bClient ? CRNGList : RNGList);
 
 	while (probe != NULL && probe->NameCRC < NameCRC)
 	{
@@ -249,8 +256,8 @@ FRandom::~FRandom ()
 
 	FRandom *last = NULL;
 
-	prev = &RNGList;
-	rng = RNGList;
+	prev = bClient ? &CRNGList : &RNGList;
+	rng = bClient ? CRNGList : RNGList;
 
 	while (rng != NULL && rng != this)
 	{
@@ -293,6 +300,11 @@ void FRandom::StaticClearRandom ()
 {
 	// go through each RNG and set each starting seed differently
 	for (FRandom *rng = FRandom::RNGList; rng != NULL; rng = rng->Next)
+	{
+		rng->Init(rngseed);
+	}
+
+	for (FRandom* rng = FRandom::CRNGList; rng != NULL; rng = rng->Next)
 	{
 		rng->Init(rngseed);
 	}
@@ -404,15 +416,15 @@ void FRandom::StaticReadRNGState(FSerializer &arc)
 //
 //==========================================================================
 
-FRandom *FRandom::StaticFindRNG (const char *name)
+FRandom *FRandom::StaticFindRNG (const char *name, bool client)
 {
 	uint32_t NameCRC = CalcCRC32 ((const uint8_t *)name, (unsigned int)strlen (name));
 
 	// Use the default RNG if this one happens to have a CRC of 0.
-	if (NameCRC == 0) return &pr_exrandom;
+	if (NameCRC == 0) return client ? &M_Random : &pr_exrandom;
 
 	// Find the RNG in the list, sorted by CRC
-	FRandom **prev = &RNGList, *probe = RNGList;
+	FRandom **prev = (client ? &CRNGList : &RNGList), *probe = (client ? CRNGList : RNGList);
 
 	while (probe != NULL && probe->NameCRC < NameCRC)
 	{
@@ -423,12 +435,30 @@ FRandom *FRandom::StaticFindRNG (const char *name)
 	if (probe == NULL || probe->NameCRC != NameCRC)
 	{
 		// A matching RNG doesn't exist yet so create it.
-		probe = new FRandom(name);
+		probe = new FRandom(name, client);
 
 		// Store the new RNG for destruction when ZDoom quits.
-		NewRNGs.Push(probe);
+		if (client)
+			NewCRNGs.Push(probe);
+		else
+			NewRNGs.Push(probe);
 	}
 	return probe;
+}
+
+void FRandom::SaveRNGState(TArray<FRandom>& backups)
+{
+	for (auto cur = RNGList; cur != nullptr; cur = cur->Next)
+		backups.Push(*cur);
+}
+
+void FRandom::RestoreRNGState(TArray<FRandom>& backups)
+{
+	unsigned int i = 0u;
+	for (auto cur = RNGList; cur != nullptr; cur = cur->Next)
+		*cur = backups[i++];
+
+	backups.Clear();
 }
 
 //==========================================================================

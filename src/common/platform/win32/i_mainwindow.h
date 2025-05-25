@@ -38,6 +38,7 @@ public:
 	void SetNetStartProgress(int pos);
 	bool RunMessageLoop(bool (*timer_callback)(void*), void* userdata);
 	void HideNetStartPane();
+	void CloseNetStartPane();
 
 	void SetWindowTitle(const char* caption);
 

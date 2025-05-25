@@ -330,6 +330,11 @@ void MainWindow::HideNetStartPane()
 	}
 }
 
+void MainWindow::CloseNetStartPane()
+{
+
+}
+
 void MainWindow::SetNetStartProgress(int pos)
 {
 	if (NetStartPane != 0 && NetStartMaxPos > 1)

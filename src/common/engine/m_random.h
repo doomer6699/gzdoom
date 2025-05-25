@@ -44,9 +44,9 @@ class FSerializer;
 class FRandom : public SFMTObj
 {
 public:
-	FRandom ();
-	FRandom (const char *name, bool useold = true);
-	~FRandom ();
+	FRandom (bool client = false);
+	FRandom (const char *name, bool client = false, bool useold = true);
+	~FRandom();
 
 	unsigned int GetRandom(); // [ED850]
 
@@ -172,7 +172,9 @@ public:
 	static void StaticClearRandom ();
 	static void StaticReadRNGState (FSerializer &arc);
 	static void StaticWriteRNGState (FSerializer &file);
-	static FRandom *StaticFindRNG(const char *name);
+	static FRandom *StaticFindRNG(const char *name, bool client);
+	static void SaveRNGState(TArray<FRandom>& backups);
+	static void RestoreRNGState(TArray<FRandom>& backups);
 
 #ifndef NDEBUG
 	static void StaticPrintSeeds ();
@@ -184,11 +186,19 @@ private:
 #endif
 	FRandom *Next;
 	uint32_t NameCRC;
+	bool bClient;
 
-	static FRandom *RNGList;
+	static FRandom *RNGList, *CRNGList;
 
 	// Use the old PRNG table if/when requested [ED850]
 	bool useOldRNG;
+};
+
+class FCRandom : public FRandom
+{
+public:
+	FCRandom() : FRandom(true) {}
+	FCRandom(const char* name) : FRandom(name, true, false) {}
 };
 
 extern uint32_t rngseed;			// The starting seed (not part of state)
@@ -198,7 +208,7 @@ extern bool use_staticrng;
 
 
 // M_Random can be used for numbers that do not affect gameplay
-extern FRandom M_Random;
+extern FCRandom M_Random;
 
 // Returns a number from 0 to 255, from a lookup table.
 unsigned int P_Random (void);

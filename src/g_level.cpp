@@ -176,7 +176,7 @@ ELightMode getRealLightmode(FLevelLocals* Level, bool for3d)
 
 CVAR(Int, sv_alwaystally, 0, CVAR_ARCHIVE | CVAR_SERVERINFO)
 
-static FRandom pr_classchoice ("RandomPlayerClassChoice", false);
+static FRandom pr_classchoice ("RandomPlayerClassChoice", false, false);
 
 extern level_info_t TheDefaultLevelInfo;
 extern bool timingdemo;

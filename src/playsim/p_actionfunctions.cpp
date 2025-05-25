@@ -73,19 +73,19 @@
 #include "shadowinlines.h"
 #include "i_time.h"
 
-static FRandom pr_camissile ("CustomActorfire", false);
-static FRandom pr_cabullet ("CustomBullet", false);
-static FRandom pr_cwjump ("CustomWpJump", false);
-static FRandom pr_cwpunch ("CustomWpPunch", false);
-static FRandom pr_grenade ("ThrowGrenade", false);
-	   FRandom pr_crailgun ("CustomRailgun", false);
-static FRandom pr_spawndebris ("SpawnDebris", false);
-static FRandom pr_spawnitemex ("SpawnItemEx", false);
-static FRandom pr_burst ("Burst", false);
+static FRandom pr_camissile ("CustomActorfire", false, false);
+static FRandom pr_cabullet ("CustomBullet", false, false);
+static FRandom pr_cwjump ("CustomWpJump", false, false);
+static FRandom pr_cwpunch ("CustomWpPunch", false, false);
+static FRandom pr_grenade ("ThrowGrenade", false, false);
+	   FRandom pr_crailgun ("CustomRailgun", false, false);
+static FRandom pr_spawndebris ("SpawnDebris", false, false);
+static FRandom pr_spawnitemex ("SpawnItemEx", false, false);
+static FRandom pr_burst ("Burst", false, false);
 static FRandom pr_monsterrefire ("MonsterRefire");
-static FRandom pr_teleport("A_Teleport", false);
-static FRandom pr_bfgselfdamage("BFGSelfDamage", false);
-	   FRandom pr_cajump("CustomJump", false);
+static FRandom pr_teleport("A_Teleport", false, false);
+static FRandom pr_bfgselfdamage("BFGSelfDamage", false, false);
+	   FRandom pr_cajump("CustomJump", false, false);
 
 //==========================================================================
 //
