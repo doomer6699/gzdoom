@@ -50,7 +50,7 @@ EXTERN_CVAR(String, language)
 //
 //==========================================================================
 
-void FStringTable::LoadStrings (FileSystem& fileSystem, const char *language)
+void FStringTable::LoadStrings (FileSys::FileSystem& fileSystem, const char *language)
 {
 	int lastlump, lump;
 
