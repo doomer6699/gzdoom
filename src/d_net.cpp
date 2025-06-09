@@ -73,6 +73,8 @@
 #include "i_interface.h"
 #include "savegamemanager.h"
 
+void P_RunClientsideLogic();
+
 EXTERN_CVAR (Int, disableautosave)
 EXTERN_CVAR (Int, autosavecount)
 EXTERN_CVAR (Bool, cl_capfps)
@@ -148,6 +150,7 @@ CVAR(Bool, vid_lowerinbackground, true, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 CVAR(Bool, net_ticbalance, false, CVAR_SERVERINFO | CVAR_NOSAVE) // Currently deprecated, but may be brought back later.
 CVAR(Bool, net_extratic, false, CVAR_SERVERINFO | CVAR_NOSAVE)
 CVAR(Bool, net_disablepause, false, CVAR_SERVERINFO | CVAR_NOSAVE)
+CVAR(Bool, net_repeatableactioncooldown, true, CVAR_SERVERINFO | CVAR_NOSAVE)
 
 CVAR(Bool, cl_noboldchat, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 CVAR(Bool, cl_nochatsound, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
@@ -157,6 +160,14 @@ CUSTOM_CVAR(Int, cl_showchat, CHAT_GLOBAL, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 		self = CHAT_DISABLED;
 	else if (self > CHAT_GLOBAL)
 		self = CHAT_GLOBAL;
+}
+
+CUSTOM_CVAR(Int, cl_debugprediction, 0, CVAR_CHEAT)
+{
+	if (self < 0)
+		self = 0;
+	else if (self > BACKUPTICS - 1)
+		self = BACKUPTICS - 1;
 }
 
 // Used to write out all network events that occured leading up to the next tick.
@@ -394,7 +405,6 @@ void Net_ResetCommands(bool midTic)
 		// Make sure not to run its current command either.
 		auto& curTic = state.Tics[tic % BACKUPTICS];
 		memset(&curTic.Command, 0, sizeof(curTic.Command));
-		curTic.Data.SetData(nullptr, 0);
 	}
 
 	NetEvents.ResetStream();
@@ -871,6 +881,9 @@ static void GetPackets()
 				{
 					pState.CurrentSequence = seq;
 				}
+				// Update this so host switching doesn't have any hiccups in packet-server mode.
+				if (NetMode == NET_PacketServer && consoleplayer != Net_Arbitrator && pNum != Net_Arbitrator)
+					pState.SequenceAck = seq;
 			}
 		}
 	}
@@ -941,6 +954,7 @@ static void CheckConsistencies()
 			const int limit = min<int>(CurrentConsistency - 1, clientState.CurrentNetConsistency);
 			while (clientState.LastVerifiedConsistency < limit)
 			{
+				++clientState.LastVerifiedConsistency;
 				const int tic = clientState.LastVerifiedConsistency % BACKUPTICS;
 				if (clientState.LocalConsistency[tic] != clientState.NetConsistency[tic])
 				{
@@ -948,8 +962,6 @@ static void CheckConsistencies()
 					clientState.LastVerifiedConsistency = clientState.CurrentNetConsistency;
 					break;
 				}
-
-				++clientState.LastVerifiedConsistency;
 			}
 		}
 	}
@@ -1072,34 +1084,72 @@ static bool Net_UpdateStatus()
 		if (NetMode != NET_PacketServer)
 		{
 			// Check if everyone has a buffer for us. If they do, we're too far ahead.
+			bool allUpdated = true;
+			int highestLatency = 0;
 			for (auto client : NetworkClients)
 			{
-				if (client != consoleplayer && (ClientStates[client].Flags & CF_UPDATED))
+				if (client != consoleplayer)
 				{
-					updated = true;
-					int diff = ClientStates[client].SequenceAck - ClientStates[client].CurrentSequence;
-					if (diff < lowestDiff)
-						lowestDiff = diff;
+					if (ClientStates[client].Flags & CF_UPDATED)
+					{
+						updated = true;
+						int diff = ClientStates[client].SequenceAck - ClientStates[client].CurrentSequence;
+						if (diff < lowestDiff)
+							lowestDiff = diff;
+						if (ClientStates[client].AverageLatency > highestLatency)
+							highestLatency = ClientStates[client].AverageLatency;
+					}
+					else
+					{
+						allUpdated = false;
+					}
 				}
 
 				ClientStates[client].Flags &= ~CF_UPDATED;
+			}
+
+			if (allUpdated)
+			{
+				// If we're consistently ahead of the highest latency player we're connected to, slow down
+				// as well since we should generally be in that ballpark.
+				const int diff = (ClientTic - gametic) / TicDup;
+				const int goal = static_cast<int>(ceil((double)highestLatency / TICRATE)) / TicDup + 1;
+				if (diff > goal)
+					lowestDiff = diff - goal;
 			}
 		}
 		else if (consoleplayer == Net_Arbitrator)
 		{
 			// If we're consistenty ahead of the highest sequence player, slow down.
+			bool allUpdated = true;
 			const int curTic = ClientTic / TicDup;
 			for (auto client : NetworkClients)
 			{
-				if (client != Net_Arbitrator && (ClientStates[client].Flags & CF_UPDATED))
+				if (client != Net_Arbitrator)
 				{
-					updated = true;
-					int diff = curTic - ClientStates[client].CurrentSequence;
-					if (diff < lowestDiff)
-						lowestDiff = diff;
+					if (ClientStates[client].Flags & CF_UPDATED)
+					{
+						updated = true;
+						int diff = curTic - ClientStates[client].CurrentSequence;
+						if (diff < lowestDiff)
+							lowestDiff = diff;
+					}
+					else
+					{
+						allUpdated = false;
+					}
 				}
 
 				ClientStates[client].Flags &= ~CF_UPDATED;
+			}
+
+			if (allUpdated)
+			{
+				// If we're consistently ahead of the world, force a stop here as well. Likely some client
+				// has fallen super far behind and needs to be reset.
+				const int diff = curTic - gametic / TicDup;
+				if (diff > 1)
+					lowestDiff = diff;
 			}
 		}
 		else if (ClientStates[Net_Arbitrator].Flags & CF_UPDATED)
@@ -1296,10 +1346,14 @@ void NetUpdate(int tics)
 		return;
 	}
 
+	constexpr size_t MaxPlayersPerPacket = 16u;
+
 	int startSequence = startTic / TicDup;
 	int endSequence = newestTic;
 	int quitters = 0;
 	int quitNums[MAXPLAYERS];
+	size_t players = 1u;
+	int maxCommands = MAXSENDTICS;
 	if (NetMode == NET_PacketServer && consoleplayer == Net_Arbitrator)
 	{
 		// In packet server mode special handling is used to ensure the host only
@@ -1314,15 +1368,40 @@ void NetUpdate(int tics)
 
 			// The host has special handling when disconnecting in a packet server game.
 			if (ClientStates[client].Flags & CF_QUIT)
+			{
 				quitNums[quitters++] = client;
-			else if (ClientStates[client].CurrentSequence < lowestSeq)
-				lowestSeq = ClientStates[client].CurrentSequence;
+			}
+			else
+			{
+				++players;
+				if (ClientStates[client].CurrentSequence < lowestSeq)
+					lowestSeq = ClientStates[client].CurrentSequence;
+			}
 		}
 
 		endSequence = lowestSeq + 1;
+
+		// To avoid fragmenting, split up commands into groups of 16p with only 2 commands per packet.
+		// If the average packet size with 16p is ~500b, this gives up to ~1000b per packet of data
+		// with some leeway for network events and UDP header data. Most routers have an MTU of 1500b.
+		// If player count is < 16, scale the number of commands by 1 per every 4 less players.
+		// If player count is < 8, scale the number of commands by 1 per every 1 less player.
+		// If player count is < 4, scale the number of commands by 4 per every 1 less player.
+		constexpr size_t MaxTicsPerPacket = 2u;
+		if (players > 1u)
+		{
+			maxCommands = MaxTicsPerPacket;
+			if (players >= MaxPlayersPerPacket / 2 && players < MaxPlayersPerPacket)
+				maxCommands = MaxTicsPerPacket + (MaxPlayersPerPacket - players) / 4;
+			else if (players >= MaxPlayersPerPacket / 4 && players < MaxPlayersPerPacket / 2)
+				maxCommands = MaxPlayersPerPacket / 4 + MaxPlayersPerPacket / 2 - players;
+			else if (players < MaxPlayersPerPacket / 4)
+				maxCommands = MaxPlayersPerPacket / 2 + (MaxPlayersPerPacket / 4 - players) * 4;
+		}
 	}
 
 	const bool resendOnly = startSequence == endSequence && (ClientTic % TicDup);
+	const int playerLoops = static_cast<int>(ceil((double)players / MaxPlayersPerPacket));
 	for (auto client : NetworkClients)
 	{
 		// If in packet server mode, we don't want to send information to anyone but the host. On the other
@@ -1332,50 +1411,41 @@ void NetUpdate(int tics)
 
 		auto& curState = ClientStates[client];
 		// If we can only resend, don't send clients any information that they already have. If
-		// we couldn't generate any commands because we're at the cap, instead send out a heartbeat
-		// containing the latest command.
-		if (resendOnly && !(curState.Flags & (CF_RETRANSMIT | CF_MISSING)))
+		// we couldn't generate any commands because we're at the cap, instead send out a heartbeat.
+		if ((curState.Flags & CF_QUIT) || (resendOnly && !(curState.Flags & (CF_RETRANSMIT | CF_MISSING))))
 			continue;
 
+		const bool isSelf = client == consoleplayer;
 		NetBuffer[0] = (curState.Flags & CF_MISSING) ? NCMD_RETRANSMIT : 0;
 		curState.Flags &= ~CF_MISSING;
 
 		NetBuffer[1] = (curState.Flags & CF_RETRANSMIT_SEQ) ? curState.ResendID : CurrentLobbyID;
-		// Last sequence we got from this client.
-		NetBuffer[2] = (curState.CurrentSequence >> 24);
-		NetBuffer[3] = (curState.CurrentSequence >> 16);
-		NetBuffer[4] = (curState.CurrentSequence >> 8);
-		NetBuffer[5] = curState.CurrentSequence;
-		// Last consistency we got from this client.
-		NetBuffer[6] = (curState.CurrentNetConsistency >> 24);
-		NetBuffer[7] = (curState.CurrentNetConsistency >> 16);
-		NetBuffer[8] = (curState.CurrentNetConsistency >> 8);
-		NetBuffer[9] = curState.CurrentNetConsistency;
-
-		size_t size = 10;
-		if (quitters > 0)
+		int lastSeq = curState.CurrentSequence;
+		int lastCon = curState.CurrentNetConsistency;
+		if (NetMode == NET_PacketServer && consoleplayer != Net_Arbitrator)
 		{
-			NetBuffer[0] |= NCMD_QUITTERS;
-			NetBuffer[size++] = quitters;
-			for (int i = 0; i < quitters; ++i)
-				NetBuffer[size++] = quitNums[i];
-		}
-
-		int playerNums[MAXPLAYERS];
-		int playerCount = NetMode == NET_PacketServer && consoleplayer == Net_Arbitrator ? NetworkClients.Size() : 1;
-		NetBuffer[size++] = playerCount;
-		if (playerCount > 1)
-		{
-			int i = 0;
+			// If in packet-server mode, make sure to get the lowest sequence of all players
+			// since the host themselves might have gotten updated but someone else in the packet
+			// did not. That way the host knows to send over the correct tic.
 			for (auto cl : NetworkClients)
-				playerNums[i++] = cl;
+			{
+				if (ClientStates[cl].CurrentSequence < lastSeq)
+					lastSeq = ClientStates[cl].CurrentSequence;
+				if (ClientStates[cl].CurrentNetConsistency < lastCon)
+					lastCon = ClientStates[cl].CurrentNetConsistency;
+			}
 		}
-		else
-		{
-			playerNums[0] = consoleplayer;
-		}
+		// Last sequence we got from this client.
+		NetBuffer[2] = (lastSeq >> 24);
+		NetBuffer[3] = (lastSeq >> 16);
+		NetBuffer[4] = (lastSeq >> 8);
+		NetBuffer[5] = lastSeq;
+		// Last consistency we got from this client.
+		NetBuffer[6] = (lastCon >> 24);
+		NetBuffer[7] = (lastCon >> 16);
+		NetBuffer[8] = (lastCon >> 8);
+		NetBuffer[9] = lastCon;
 
-		// Only send over our newest commands. If a client missed one, they'll let us know.
 		if (curState.Flags & CF_RETRANSMIT_SEQ)
 		{
 			curState.Flags &= ~CF_RETRANSMIT_SEQ;
@@ -1385,21 +1455,6 @@ void NetUpdate(int tics)
 
 		const int sequenceNum = curState.ResendSequenceFrom >= 0 ? curState.ResendSequenceFrom : startSequence;
 		const int numTics = clamp<int>(endSequence - sequenceNum, 0, MAXSENDTICS);
-		if (curState.ResendSequenceFrom >= 0)
-		{
-			curState.ResendSequenceFrom += numTics;
-			if (curState.ResendSequenceFrom >= endSequence)
-				curState.ResendSequenceFrom = -1;
-		}
-		
-		NetBuffer[size++] = numTics;
-		if (numTics > 0)
-		{
-			NetBuffer[size++] = (sequenceNum >> 24);
-			NetBuffer[size++] = (sequenceNum >> 16);
-			NetBuffer[size++] = (sequenceNum >> 8);
-			NetBuffer[size++] = sequenceNum;
-		}
 
 		if (curState.Flags & CF_RETRANSMIT_CON)
 		{
@@ -1407,106 +1462,174 @@ void NetUpdate(int tics)
 			if (curState.ResendConsistencyFrom < 0)
 				curState.ResendConsistencyFrom = curState.ConsistencyAck + 1;
 		}
-		
+
 		const int baseConsistency = curState.ResendConsistencyFrom >= 0 ? curState.ResendConsistencyFrom : LastSentConsistency;
 		// Don't bother sending over consistencies in packet server unless you're the host.
 		int ran = 0;
 		if (NetMode != NET_PacketServer || consoleplayer == Net_Arbitrator)
-		{
 			ran = clamp<int>(CurrentConsistency - baseConsistency, 0, MAXSENDTICS);
-			if (curState.ResendConsistencyFrom >= 0)
-			{
-				curState.ResendConsistencyFrom += ran;
-				if (curState.ResendConsistencyFrom >= CurrentConsistency)
-					curState.ResendConsistencyFrom = -1;
-			}
-		}
 
-		NetBuffer[size++] = ran;
-		if (ran > 0)
+		int ticLoops = static_cast<int>(ceil(max<double>(numTics, ran) / maxCommands));
+		if (isSelf || !ticLoops)
+			ticLoops = 1;
+
+		const int maxPlayerLoops = isSelf ? 1 : playerLoops;
+		int totalQuits = quitters;
+		for (int tLoops = 0, curTicOfs = 0; tLoops < ticLoops; ++tLoops, curTicOfs += maxCommands)
 		{
-			NetBuffer[size++] = (baseConsistency >> 24);
-			NetBuffer[size++] = (baseConsistency >> 16);
-			NetBuffer[size++] = (baseConsistency >> 8);
-			NetBuffer[size++] = baseConsistency;
-		}
-
-		if (NetMode == NET_PacketServer && consoleplayer == Net_Arbitrator)
-			NetBuffer[size++] = client == Net_Arbitrator ? 0 : max<int>(curState.CurrentSequence - newestTic, 0);
-
-		// Client commands.
-
-		uint8_t* cmd = &NetBuffer[size];
-		for (int i = 0; i < playerCount; ++i)
-		{
-			cmd[0] = playerNums[i];
-			++cmd;
-
-			auto& clientState = ClientStates[playerNums[i]];
-			// Time used to track latency since in packet server mode we want each
-			// client's latency to the server itself.
-			if (NetMode == NET_PacketServer && consoleplayer == Net_Arbitrator)
+			for (int pLoops = 0, curPlayerOfs = 0; pLoops < maxPlayerLoops; ++pLoops, curPlayerOfs += MaxPlayersPerPacket)
 			{
-				cmd[0] = (clientState.AverageLatency >> 8);
-				++cmd;
-				cmd[0] = clientState.AverageLatency;
-				++cmd;
-			}
-
-			for (int r = 0; r < ran; ++r)
-			{
-				cmd[0] = r;
-				++cmd;
-				const int tic = (baseConsistency + r) % BACKUPTICS;
-				cmd[0] = (clientState.LocalConsistency[tic] >> 8);
-				++cmd;
-				cmd[0] = clientState.LocalConsistency[tic];
-				++cmd;
-			}
-
-			for (int t = 0; t < numTics; ++t)
-			{
-				cmd[0] = t;
-				++cmd;
-
-				int curTic = sequenceNum + t, lastTic = curTic - 1;
-				if (playerNums[i] == consoleplayer)
+				size_t size = 10;
+				if (totalQuits > 0)
 				{
-					int realTic = (curTic * TicDup) % LOCALCMDTICS;
-					int realLastTic = (lastTic * TicDup) % LOCALCMDTICS;
-					// Write out the net events before the user commands so inputs can
-					// be used as a marker for when the given command ends.
-					auto& stream = NetEvents.Streams[curTic % BACKUPTICS];
-					if (stream.Used)
-					{
-						memcpy(cmd, stream.Stream, stream.Used);
-						cmd += stream.Used;
-					}
+					NetBuffer[0] |= NCMD_QUITTERS;
+					NetBuffer[size++] = totalQuits;
+					for (int i = 0; i < totalQuits; ++i)
+						NetBuffer[size++] = quitNums[i];
 
-					WriteUserCmdMessage(LocalCmds[realTic],
-						realLastTic >= 0 ? &LocalCmds[realLastTic] : nullptr, cmd);
+					totalQuits = 0;
 				}
 				else
 				{
-					auto& netTic = clientState.Tics[curTic % BACKUPTICS];
+					NetBuffer[0] &= ~NCMD_QUITTERS;
+				}
 
-					int len;
-					uint8_t* data = netTic.Data.GetData(&len);
-					if (data != nullptr)
+				int playerNums[MAXPLAYERS];
+				int playerCount = isSelf ? players : min<int>(players - curPlayerOfs, MaxPlayersPerPacket);
+				NetBuffer[size++] = playerCount;
+				if (players > 1)
+				{
+					int i = 0;
+					for (auto cl : NetworkClients)
 					{
-						memcpy(cmd, data, len);
-						cmd += len;
+						if (ClientStates[cl].Flags & CF_QUIT)
+							continue;
+
+						if (i >= curPlayerOfs)
+							playerNums[i - curPlayerOfs] = cl;
+
+						++i;
+						if (!isSelf && i >= curPlayerOfs + MaxPlayersPerPacket)
+							break;
+					}
+				}
+				else
+				{
+					playerNums[0] = consoleplayer;
+				}
+
+				int sendTics = isSelf ? numTics : clamp<int>(numTics - curTicOfs, 0, maxCommands);
+				if (curState.ResendSequenceFrom >= 0)
+				{
+					curState.ResendSequenceFrom += sendTics;
+					if (curState.ResendSequenceFrom >= endSequence)
+						curState.ResendSequenceFrom = -1;
+				}
+
+				NetBuffer[size++] = sendTics;
+				if (sendTics > 0)
+				{
+					NetBuffer[size++] = (sequenceNum + curTicOfs) >> 24;
+					NetBuffer[size++] = (sequenceNum + curTicOfs) >> 16;
+					NetBuffer[size++] = (sequenceNum + curTicOfs) >> 8;
+					NetBuffer[size++] = sequenceNum + curTicOfs;
+				}
+
+				int sendCon = isSelf ? ran : clamp<int>(ran - curTicOfs, 0, maxCommands);
+				if (curState.ResendConsistencyFrom >= 0)
+				{
+					curState.ResendConsistencyFrom += sendCon;
+					if (curState.ResendConsistencyFrom >= CurrentConsistency)
+						curState.ResendConsistencyFrom = -1;
+				}
+
+				NetBuffer[size++] = sendCon;
+				if (sendCon > 0)
+				{
+					NetBuffer[size++] = (baseConsistency + curTicOfs) >> 24;
+					NetBuffer[size++] = (baseConsistency + curTicOfs) >> 16;
+					NetBuffer[size++] = (baseConsistency + curTicOfs) >> 8;
+					NetBuffer[size++] = baseConsistency + curTicOfs;
+				}
+
+				if (NetMode == NET_PacketServer && consoleplayer == Net_Arbitrator)
+					NetBuffer[size++] = client == Net_Arbitrator ? 0 : max<int>(curState.CurrentSequence - newestTic, 0);
+
+				// Client commands.
+
+				uint8_t* cmd = &NetBuffer[size];
+				for (int i = 0; i < playerCount; ++i)
+				{
+					cmd[0] = playerNums[i];
+					++cmd;
+
+					auto& clientState = ClientStates[playerNums[i]];
+					// Time used to track latency since in packet server mode we want each
+					// client's latency to the server itself.
+					if (NetMode == NET_PacketServer && consoleplayer == Net_Arbitrator)
+					{
+						cmd[0] = (clientState.AverageLatency >> 8);
+						++cmd;
+						cmd[0] = clientState.AverageLatency;
+						++cmd;
 					}
 
-					WriteUserCmdMessage(netTic.Command,
-						lastTic >= 0 ? &clientState.Tics[lastTic % BACKUPTICS].Command : nullptr, cmd);
+					for (int r = 0; r < sendCon; ++r)
+					{
+						cmd[0] = r;
+						++cmd;
+						const int tic = (baseConsistency + curTicOfs + r) % BACKUPTICS;
+						cmd[0] = (clientState.LocalConsistency[tic] >> 8);
+						++cmd;
+						cmd[0] = clientState.LocalConsistency[tic];
+						++cmd;
+					}
+
+					for (int t = 0; t < sendTics; ++t)
+					{
+						cmd[0] = t;
+						++cmd;
+
+						int curTic = sequenceNum + curTicOfs + t, lastTic = curTic - 1;
+						if (playerNums[i] == consoleplayer)
+						{
+							int realTic = (curTic * TicDup) % LOCALCMDTICS;
+							int realLastTic = (lastTic * TicDup) % LOCALCMDTICS;
+							// Write out the net events before the user commands so inputs can
+							// be used as a marker for when the given command ends.
+							auto& stream = NetEvents.Streams[curTic % BACKUPTICS];
+							if (stream.Used)
+							{
+								memcpy(cmd, stream.Stream, stream.Used);
+								cmd += stream.Used;
+							}
+
+							WriteUserCmdMessage(LocalCmds[realTic],
+								realLastTic >= 0 ? &LocalCmds[realLastTic] : nullptr, cmd);
+						}
+						else
+						{
+							auto& netTic = clientState.Tics[curTic % BACKUPTICS];
+
+							int len;
+							uint8_t* data = netTic.Data.GetData(&len);
+							if (data != nullptr)
+							{
+								memcpy(cmd, data, len);
+								cmd += len;
+							}
+
+							WriteUserCmdMessage(netTic.Command,
+								lastTic >= 0 ? &clientState.Tics[lastTic % BACKUPTICS].Command : nullptr, cmd);
+						}
+					}
 				}
+
+				HSendPacket(client, int(cmd - NetBuffer));
+				if (net_extratic && !isSelf)
+					HSendPacket(client, int(cmd - NetBuffer));
 			}
 		}
-
-		HSendPacket(client, int(cmd - NetBuffer));
-		if (client != consoleplayer && net_extratic)
-			HSendPacket(client, int(cmd - NetBuffer));
 	}
 
 	// Update this now that all the packets have been sent out.
@@ -1801,6 +1924,12 @@ static bool ShouldStabilizeTick()
 void TryRunTics()
 {
 	GC::CheckGC();
+
+	if (ToggleFullscreen)
+	{
+		ToggleFullscreen = false;
+		AddCommandString("toggle vid_fullscreen");
+	}
 	
 	bool doWait = (cl_capfps || pauseext || (!netgame && r_NoInterpolate && !M_IsAnimated()));
 	if (vid_dontdowait && (vid_maxfps > 0 || vid_vsync))
@@ -1848,19 +1977,23 @@ void TryRunTics()
 	int runTics = min<int>(totalTics, availableTics);
 	if (totalTics > 0 && totalTics < availableTics - 1 && !singletics)
 		++runTics;
-	
+
+	// Test player prediction code in singleplayer
+	// by running the gametic behind the ClientTic
+	if (!netgame && !demoplayback && cl_debugprediction > 0)
+	{
+		int debugTarget = ClientTic - cl_debugprediction;
+		int debugOffset = gametic - debugTarget;
+		if (debugOffset > 0)
+		{
+			runTics = max<int>(runTics - debugOffset, 0);
+		}
+	}
+
 	// If there are no tics to run, check for possible stall conditions and new
 	// commands to predict.
 	if (runTics <= 0)
 	{
-		// If we actually did have some tics available, make sure the UI
-		// still has a chance to run.
-		for (int i = 0; i < totalTics; ++i)
-		{
-			C_Ticker();
-			M_Ticker();
-		}
-
 		// If we're in between a tic, try and balance things out.
 		if (totalTics <= 0)
 			TicStabilityWait();
@@ -1875,6 +2008,11 @@ void TryRunTics()
 			P_PredictPlayer(&players[consoleplayer]);
 			S_UpdateSounds(players[consoleplayer].camera);	// Update sounds only after predicting the client's newest position.
 		}
+
+		// If we actually did have some tics available, make sure the UI
+		// still has a chance to run.
+		for (int i = 0; i < totalTics; ++i)
+			P_RunClientsideLogic();
 
 		return;
 	}
@@ -1896,8 +2034,6 @@ void TryRunTics()
 		if (advancedemo)
 			D_DoAdvanceDemo();
 
-		C_Ticker();
-		M_Ticker();
 		G_Ticker();
 		MakeConsistencies();
 		++gametic;
@@ -1913,6 +2049,11 @@ void TryRunTics()
 	}
 	P_PredictPlayer(&players[consoleplayer]);
 	S_UpdateSounds(players[consoleplayer].camera);	// Update sounds only after predicting the client's newest position.
+
+	// These should use the actual tics since they're not actually tied to the gameplay logic.
+	// Make sure it always comes after so the HUD has the correct game state when updating.
+	for (int i = 0; i < totalTics; ++i)
+		P_RunClientsideLogic();
 }
 
 void Net_NewClientTic()
