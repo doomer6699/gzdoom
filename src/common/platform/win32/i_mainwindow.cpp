@@ -263,136 +263,64 @@ void MainWindow::SetProgressPos(int pos)
 		SendMessage(ProgressBar, PBM_SETPOS, pos, 0);
 }
 
-// DialogProc for the network startup pane. It just waits for somebody to click a button, and the only button available is the abort one.
-static INT_PTR CALLBACK NetStartPaneProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+void MainWindow::NetInit(const char* message, bool host)
 {
-	if (msg == WM_COMMAND && HIWORD(wParam) == BN_CLICKED && LOWORD(wParam) == IDCANCEL)
-	{
-		PostMessage(hDlg, WM_COMMAND, 1337, 1337);
-		return TRUE;
-	}
-	return FALSE;
+	NetStartWindow::NetInit(message, host);
 }
 
-void MainWindow::ShowNetStartPane(const char* message, int maxpos)
+void MainWindow::NetMessage(const char* message)
 {
-	// Create the dialog child window
-	if (NetStartPane == NULL)
-	{
-		NetStartPane = CreateDialogParam(GetModuleHandle(0), MAKEINTRESOURCE(IDD_NETSTARTPANE), Window, NetStartPaneProc, 0);
-		if (ProgressBar != 0)
-		{
-			DestroyWindow(ProgressBar);
-			ProgressBar = 0;
-		}
-		RECT winrect;
-		GetWindowRect(Window, &winrect);
-		SetWindowPos(Window, NULL, 0, 0,
-			winrect.right - winrect.left, winrect.bottom - winrect.top + LayoutNetStartPane(NetStartPane, 0),
-			SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOZORDER);
-		LayoutMainWindow(Window, NULL);
-		SetFocus(NetStartPane);
-	}
-
-	// Set the message text
-	std::wstring wmessage = WideString(message);
-	SetDlgItemTextW(NetStartPane, IDC_NETSTARTMESSAGE, wmessage.c_str());
-
-	// Set the progress bar range
-	NetStartMaxPos = maxpos;
-	HWND ctl = GetDlgItem(NetStartPane, IDC_NETSTARTPROGRESS);
-	if (maxpos == 0)
-	{
-		SendMessage(ctl, PBM_SETMARQUEE, TRUE, 100);
-		SetWindowLong(ctl, GWL_STYLE, GetWindowLong(ctl, GWL_STYLE) | PBS_MARQUEE);
-		SetDlgItemTextW(NetStartPane, IDC_NETSTARTCOUNT, L"");
-	}
-	else
-	{
-		SendMessage(ctl, PBM_SETMARQUEE, FALSE, 0);
-		SetWindowLong(ctl, GWL_STYLE, GetWindowLong(ctl, GWL_STYLE) & (~PBS_MARQUEE));
-
-		SendMessage(ctl, PBM_SETRANGE, 0, MAKELPARAM(0, maxpos));
-		if (maxpos == 1)
-		{
-			SendMessage(ctl, PBM_SETPOS, 1, 0);
-			SetDlgItemTextW(NetStartPane, IDC_NETSTARTCOUNT, L"");
-		}
-	}
+	NetStartWindow::NetMessage(message);
 }
 
-void MainWindow::HideNetStartPane()
+void MainWindow::NetConnect(int client, const char* name, unsigned flags, int status)
 {
-	if (NetStartPane != 0)
-	{
-		DestroyWindow(NetStartPane);
-		NetStartPane = 0;
-		LayoutMainWindow(Window, 0);
-	}
+	NetStartWindow::NetConnect(client, name, flags, status);
 }
 
-void MainWindow::CloseNetStartPane()
+void MainWindow::NetUpdate(int client, int status)
+{
+	NetStartWindow::NetUpdate(client, status);
+}
+
+void MainWindow::NetDisconnect(int client)
+{
+	NetStartWindow::NetDisconnect(client);
+}
+
+void MainWindow::NetProgress(int cur, int limit)
+{
+	NetStartWindow::NetProgress(cur, limit);
+}
+
+void MainWindow::NetDone()
+{
+	NetStartWindow::NetDone();
+}
+
+void MainWindow::NetClose()
 {
 	NetStartWindow::NetClose();
 }
 
-bool MainWindow::ShouldStartNetGame()
+bool MainWindow::ShouldStartNet()
 {
-	return NetStartWindow::ShouldStartNetGame();
+	return NetStartWindow::ShouldStartNet();
 }
 
-void MainWindow::SetNetStartProgress(int pos)
+int MainWindow::GetNetKickClient()
 {
-	if (NetStartPane != 0 && NetStartMaxPos > 1)
-	{
-		char buf[16];
-		mysnprintf(buf, sizeof(buf), "%d/%d", pos, NetStartMaxPos);
-		SetDlgItemTextA(NetStartPane, IDC_NETSTARTCOUNT, buf);
-		SendDlgItemMessage(NetStartPane, IDC_NETSTARTPROGRESS, PBM_SETPOS, min(pos, NetStartMaxPos), 0);
-	}
+	return NetStartWindow::GetNetKickClient();
 }
 
-bool MainWindow::RunMessageLoop(bool (*timer_callback)(void*), void* userdata)
+int MainWindow::GetNetBanClient()
 {
-	BOOL bRet;
-	MSG msg;
+	return NetStartWindow::GetNetBanClient();
+}
 
-	if (SetTimer(Window, 1337, 500, NULL) == 0)
-	{
-		I_FatalError("Could not set network synchronization timer.");
-	}
-
-	while ((bRet = GetMessage(&msg, NULL, 0, 0)) != 0)
-	{
-		if (bRet == -1)
-		{
-			KillTimer(Window, 1337);
-			return false;
-		}
-		else
-		{
-			// This must be outside the window function so that the exception does not cross DLL boundaries.
-			if (msg.message == WM_COMMAND && msg.wParam == 1337 && msg.lParam == 1337)
-			{
-				throw CExitEvent(0);
-			}
-			if (msg.message == WM_TIMER && msg.hwnd == Window && msg.wParam == 1337)
-			{
-				if (timer_callback(userdata))
-				{
-					KillTimer(Window, 1337);
-					return true;
-				}
-			}
-			if (!IsDialogMessage(NetStartPane, &msg))
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-		}
-	}
-	KillTimer(Window, 1337);
-	return false;
+bool MainWindow::NetLoop(bool (*loopCallback)(void*), void* data)
+{
+	return NetStartWindow::NetLoop(loopCallback, data);
 }
 
 void MainWindow::UpdateLayout()

@@ -34,12 +34,18 @@ public:
 	void HideProgressBar();
 	void SetProgressPos(int pos);
 
-	void ShowNetStartPane(const char* message, int maxpos);
-	void SetNetStartProgress(int pos);
-	bool RunMessageLoop(bool (*timer_callback)(void*), void* userdata);
-	void HideNetStartPane();
-	void CloseNetStartPane();
-	bool ShouldStartNetGame();
+	void NetInit(const char* message, bool host);
+	void NetMessage(const char* message);
+	void NetConnect(int client, const char* name, unsigned flags, int status);
+	void NetUpdate(int client, int status);
+	void NetDisconnect(int client);
+	void NetProgress(int cur, int limit);
+	void NetDone();
+	void NetClose();
+	bool ShouldStartNet();
+	int GetNetKickClient();
+	int GetNetBanClient();
+	bool NetLoop(bool (*loopCallback)(void*), void* data);
 
 	void SetWindowTitle(const char* caption);
 
@@ -84,7 +90,6 @@ private:
 	HWND ProgressBar = 0;
 
 	HWND NetStartPane = 0;
-	int NetStartMaxPos = 0;
 
 	HWND StartupScreen = 0;
 };
