@@ -11,6 +11,7 @@
 #include "v_font.h"
 #include "i_net.h"
 #include "engineerrors.h"
+#include "common/widgets/netstartwindow.h"
 #include <richedit.h>
 #include <shellapi.h>
 #include <commctrl.h>
@@ -332,7 +333,12 @@ void MainWindow::HideNetStartPane()
 
 void MainWindow::CloseNetStartPane()
 {
+	NetStartWindow::NetClose();
+}
 
+bool MainWindow::ShouldStartNetGame()
+{
+	return NetStartWindow::ShouldStartNetGame();
 }
 
 void MainWindow::SetNetStartProgress(int pos)

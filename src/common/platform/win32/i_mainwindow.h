@@ -39,6 +39,7 @@ public:
 	bool RunMessageLoop(bool (*timer_callback)(void*), void* userdata);
 	void HideNetStartPane();
 	void CloseNetStartPane();
+	bool ShouldStartNetGame();
 
 	void SetWindowTitle(const char* caption);
 

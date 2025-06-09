@@ -165,7 +165,7 @@ const FIWADInfo *D_FindIWAD(TArray<FString> &wadfiles, const char *iwad, const c
 
 bool D_CheckNetGame ();
 void D_ProcessEvents ();
-void G_BuildTiccmd (ticcmd_t* cmd);
+void G_BuildTiccmd (usercmd_t* cmd);
 void D_DoAdvanceDemo ();
 void D_LoadWadSettings ();
 void ParseGLDefs();
@@ -877,7 +877,6 @@ static void DrawRateStuff()
 
 static void DrawOverlays()
 {
-	NetUpdate ();
 	C_DrawConsole ();
 	M_Drawer ();
 	DrawRateStuff();
@@ -906,6 +905,8 @@ void D_Display ()
 	FTexture *wipestart = nullptr;
 	int wipe_type;
 	sector_t *viewsec;
+
+	GC::CheckGC();
 
 	if (nodrawers || screen == NULL)
 		return; 				// for comparative timing / profiling
@@ -963,7 +964,7 @@ void D_Display ()
 	}
 
 	// [RH] Allow temporarily disabling wipes
-	if (NoWipe || !CanWipe())
+	if (netgame || NoWipe || !CanWipe())
 	{
 		if (NoWipe > 0) NoWipe--;
 		wipestart = nullptr;
@@ -1156,7 +1157,6 @@ void D_Display ()
 	}
 	else
 	{
-		NetUpdate();		// send out any new accumulation
 		PerformWipe(wipestart, screen->WipeEndScreen(), wipe_type, false, DrawOverlays);
 	}
 	cycles.Unclock();
@@ -1184,7 +1184,6 @@ void D_ErrorCleanup ()
 	G_NewInit ();
 	netgame = aux;
 	M_ClearMenus ();
-	singletics = false;
 	playeringame[0] = 1;
 	players[0].playerstate = PST_LIVE;
 	gameaction = ga_fullconsole;
@@ -1231,28 +1230,7 @@ void D_DoomLoop ()
 			}
 			I_SetFrameTime();
 
-			// process one or more tics
-			if (singletics)
-			{
-				I_StartTic ();
-				D_ProcessEvents ();
-				G_BuildTiccmd (&netcmds[consoleplayer][maketic%BACKUPTICS]);
-				if (advancedemo)
-					D_DoAdvanceDemo ();
-				C_Ticker ();
-				M_Ticker ();
-				G_Ticker ();
-				// [RH] Use the consoleplayer's camera to update sounds
-				S_UpdateSounds (players[consoleplayer].camera);	// move positional sounds
-				gametic++;
-				maketic++;
-				GC::CheckGC ();
-				Net_NewMakeTic ();
-			}
-			else
-			{
-				TryRunTics (); // will run at least one tic
-			}
+			TryRunTics (); // will run at least one tic
 			// Update display, next frame, with current state.
 			I_StartTic ();
 			D_ProcessEvents();
@@ -3461,7 +3439,7 @@ static int D_InitGame(const FIWADInfo* iwad_info, std::vector<std::string>& allw
 
 	// [RH] Run any saved commands from the command line or autoexec.cfg now.
 	gamestate = GS_FULLCONSOLE;
-	Net_NewMakeTic ();
+	Net_Initialize();
 	C_RunDelayedCommands();
 	gamestate = GS_STARTUP;
 
@@ -3554,6 +3532,7 @@ static int D_InitGame(const FIWADInfo* iwad_info, std::vector<std::string>& allw
 							AddCommandString(StoredWarp.GetChars());
 							StoredWarp = "";
 						}
+						gameaction = ga_mapwarp;
 					}
 					else
 					{
