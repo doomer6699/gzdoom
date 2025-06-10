@@ -301,7 +301,7 @@ CCMD (turnspeeds)
 		}
 		if (i <= 4)
 		{
-			*angleturn[3] = *angleturn[2];
+			*angleturn[3] = **angleturn[2];
 		}
 	}
 }
@@ -318,9 +318,7 @@ CCMD (slot)
 			// Needs to be redone
 			IFVIRTUALPTRNAME(mo, NAME_PlayerPawn, PickWeapon)
 			{
-				VMValue param[] = { mo, slot, !(dmflags2 & DF2_DONTCHECKAMMO) };
-				VMReturn ret((void**)&SendItemUse);
-				VMCall(func, param, 3, &ret, 1);
+				SendItemUse = VMCallSingle<AActor *>(func, mo, slot, (int)!(dmflags2 & DF2_DONTCHECKAMMO));
 			}
 		}
 
@@ -376,9 +374,7 @@ CCMD (weapnext)
 		// Needs to be redone
 		IFVIRTUALPTRNAME(mo, NAME_PlayerPawn, PickNextWeapon)
 		{
-			VMValue param[] = { mo };
-			VMReturn ret((void**)&SendItemUse);
-			VMCall(func, param, 1, &ret, 1);
+			SendItemUse = VMCallSingle<AActor *>(func, mo);
 		}
 	}
 
@@ -403,9 +399,7 @@ CCMD (weapprev)
 		// Needs to be redone
 		IFVIRTUALPTRNAME(mo, NAME_PlayerPawn, PickPrevWeapon)
 		{
-			VMValue param[] = { mo };
-			VMReturn ret((void**)&SendItemUse);
-			VMCall(func, param, 1, &ret, 1);
+			SendItemUse = VMCallSingle<AActor *>(func, mo);
 		}
 	}
 
@@ -444,8 +438,7 @@ CCMD (invnext)
 	{
 		IFVM(PlayerPawn, InvNext)
 		{
-			VMValue param = players[consoleplayer].mo;
-			VMCall(func, &param, 1, nullptr, 0);
+			VMCallVoid<AActor *>(func, players[consoleplayer].mo);
 		}
 	}
 }
@@ -456,8 +449,7 @@ CCMD(invprev)
 	{
 		IFVM(PlayerPawn, InvPrev)
 		{
-			VMValue param = players[consoleplayer].mo;
-			VMCall(func, &param, 1, nullptr, 0);
+			VMCallVoid<AActor *>(func, players[consoleplayer].mo);
 		}
 	}
 }
@@ -532,10 +524,7 @@ CCMD (useflechette)
 	if (players[consoleplayer].mo == nullptr) return;
 	IFVIRTUALPTRNAME(players[consoleplayer].mo, NAME_PlayerPawn, GetFlechetteItem)
 	{
-		VMValue params[] = { players[consoleplayer].mo };
-		AActor *cls;
-		VMReturn ret((void**)&cls);
-		VMCall(func, params, 1, &ret, 1);
+		AActor * cls = VMCallSingle<AActor *>(func, players[consoleplayer].mo);
 
 		if (cls != nullptr) SendItemUse = cls;
 	}
@@ -1302,8 +1291,7 @@ void G_PlayerFinishLevel (int player, EFinishLevelType mode, int flags)
 {
 	IFVM(PlayerPawn, PlayerFinishLevel)
 	{
-		VMValue params[] = { players[player].mo, mode, flags };
-		VMCall(func, params, 3, nullptr, 0);
+		VMCallVoid(func, players[player].mo, (int)mode, flags);
 	}
 }
 
@@ -1376,8 +1364,7 @@ void FLevelLocals::PlayerReborn (int player)
 
 		IFVIRTUALPTRNAME(actor, NAME_PlayerPawn, GiveDefaultInventory)
 		{
-			VMValue params[1] = { actor };
-			VMCall(func, params, 1, nullptr, 0);
+			VMCallVoid(func, actor);
 		}
 		p->ReadyWeapon = p->PendingWeapon;
 	}

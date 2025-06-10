@@ -562,7 +562,7 @@ namespace swrenderer
 				Fake3DOpaque::Normal,
 				0);
 
-			ceilingplane->AddLights(Thread, sub->section->lighthead);
+			ceilingplane->AddLights(Thread, sub->section);
 		}
 
 		int adjusted_floorlightlevel = floorlightlevel;
@@ -602,7 +602,7 @@ namespace swrenderer
 				Fake3DOpaque::Normal,
 				0);
 
-			floorplane->AddLights(Thread, sub->section->lighthead);
+			floorplane->AddLights(Thread, sub->section);
 		}
 
 		Add3DFloorPlanes(sub, frontsector, basecolormap, foggy, adjusted_ceilinglightlevel, adjusted_floorlightlevel);
@@ -739,7 +739,7 @@ namespace swrenderer
 						Fake3DOpaque::FakeFloor,
 						fakeAlpha);
 
-					floorplane3d->AddLights(Thread, sub->section->lighthead);
+					floorplane3d->AddLights(Thread, sub->section);
 
 					FakeDrawLoop(sub, &tempsec, floorplane3d, nullptr, Fake3DOpaque::FakeFloor);
 				}
@@ -807,7 +807,7 @@ namespace swrenderer
 						Fake3DOpaque::FakeCeiling,
 						fakeAlpha);
 
-					ceilingplane3d->AddLights(Thread, sub->section->lighthead);
+					ceilingplane3d->AddLights(Thread, sub->section);
 
 					FakeDrawLoop(sub, &tempsec, nullptr, ceilingplane3d, Fake3DOpaque::FakeCeiling);
 				}
