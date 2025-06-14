@@ -1742,8 +1742,36 @@ DEFINE_ACTION_FUNCTION_NATIVE(_Sector, SetXOffset, SetXOffset)
  {
 	 PARAM_SELF_STRUCT_PROLOGUE(FLevelLocals);
 	 PARAM_INT(skymist);
+	 PARAM_BOOL(usemist);
 	 self->skymisttexture = FSetTextureID(skymist);
+	 if (usemist)
+	 {
+		 self->flags3 |= LEVEL3_SKYMIST;
+	 }
+	 else
+	 {
+		 self->flags3 &= ~LEVEL3_SKYMIST;
+	 }
 	 InitSkyMap(self);
+	 return 0;
+ }
+
+ DEFINE_ACTION_FUNCTION(FLevelLocals, SetSkyFog)
+ {
+	 PARAM_SELF_STRUCT_PROLOGUE(FLevelLocals);
+	 PARAM_INT(fogdensity);
+	 self->skyfog = fogdensity;
+	 InitSkyMap(self);
+	 return 0;
+ }
+
+ DEFINE_ACTION_FUNCTION(FLevelLocals, SetThickFog)
+ {
+	 PARAM_SELF_STRUCT_PROLOGUE(FLevelLocals);
+	 PARAM_FLOAT(distance);
+	 PARAM_FLOAT(multiplier);
+	 self->thickfogdistance = distance;
+	 if (multiplier > 0.0) self->thickfogmultiplier = multiplier;
 	 return 0;
  }
 
@@ -2367,6 +2395,13 @@ DEFINE_ACTION_FUNCTION_NATIVE(FLevelLocals, GetUDMFString, ZGetUDMFString)
 	PARAM_INT(index);
 	PARAM_NAME(key);
 	ACTION_RETURN_STRING(GetUDMFString(self, type, index, key));
+}
+
+DEFINE_ACTION_FUNCTION(FLevelLocals, PlayerNum)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(FLevelLocals);
+	PARAM_POINTER(player, player_t);
+	ACTION_RETURN_INT(self->PlayerNum(player));
 }
 
 DEFINE_ACTION_FUNCTION(FLevelLocals, GetChecksum)
