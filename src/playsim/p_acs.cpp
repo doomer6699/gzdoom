@@ -5548,6 +5548,7 @@ int DLevelScript::CallFunction(int argCount, int funcIndex, int32_t *args, int &
 		{
 			if (args[0] == 1) Level->skyspeed1 = ACSToFloat(args[1]);
 			else if (args[0] == 2) Level->skyspeed2 = ACSToFloat(args[1]);
+			else if (args[0] == 3) Level->skymistspeed = ACSToFloat(args[1]);
 			return 1;
 		}
 
